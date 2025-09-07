@@ -1,704 +1,437 @@
-
-# 8/6
-추가 사항 실행 후 오류 발생 시 알려주세요!
+# 0907
+### 1km 러닝 인증 사진 퀘스트 활성화 수정   
+수정 코드는 09.04에 주원님이 톡방에 올려주신 전체 프로젝트 파일 기반으로 수정한 내용입니다.
+추가적으로 필요한 수정 사항이 있다면 연락주세요!
 
 <details>
-    <summary>카메라 퀘스트 1</summary>
-## Tab3Activity.java 카메라 퀘스트 추가 업데이트(조건 X)
+  <summary>AndroidManifest.xml</summary>
+  
+  ##
+```
+<activity android:name=".PhotoPreviewActivity" android:exported="true" />
+```
+액티비티 추가
+</details>
+<details>
+  <summary>build.gradle.kts(:app)</summary>
+
+  ##
+  ```
+// ML Kit 이미지 라벨링
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+```
+추가
+  
+</details>
+<details>
+  <summary>Tab3Activity.java</summary>
+
+  ##
+```
+private Button btnClaimP1, btnClaimP2;
+```
+를
+```
+private Button btnQuestP1, btnQuestP2;
+```
+로 변경
+##
+onCreate 내부 변경 사항
+```
+btnClaimP1 = findViewById(R.id.btnClaimP1);
+        btnClaimP2 = findViewById(R.id.btnClaimP2);
+```
+를
+```
+btnQuestP1 = findViewById(R.id.btnQuestP1);
+        btnQuestP2 = findViewById(R.id.btnQuestP2);
+```
+로 변경
 
 ```
-package kr.ac.hs.farm;
+// 전달받은 러닝 거리를 1km 조건 체크에 활용
+        btnClaimP1.setEnabled(lastRunDistance >= 1.0);
+        btnClaimP2.setEnabled(true); // 항상 가능
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-
-import android.Manifest;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.location.Location;
-import android.net.Uri;
-import android.os.Bundle;
-import android.graphics.Bitmap;
-import android.os.Environment;
-import android.provider.MediaStore;
-import android.widget.ProgressBar;
-import android.widget.Button;
-import android.content.SharedPreferences;
-import android.widget.ImageView;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
-import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.graphics.Insets;
-
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import android.widget.Toast;
-import android.util.Log;
-import android.view.View;
-
-public class Tab3Activity extends AppCompatActivity {
-
-    private static final int REQUEST_IMAGE_CAPTURE = 1;
-    private static final int REQUEST_CAMERA_PERMISSION = 200; //추가
-    private ProgressBar[] progressBars = new ProgressBar[13];
-    private Button[] claimButtons = new Button[13];
-    private ImageView imagePreview;
-    private Location startLocation; // 러닝 시작 지점 저장용
-    private Uri photoURI;
-    private File photoFile;
-    private Button buttonTakePhoto;
-    //카메라 퀘스트: 조건 없는 경우
-    private String currentPhotoPath;
-    private boolean photoTaken = false;
-
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_tab3);
-        Log.d("퀘스트응답", "Tab3Activity onCreate 진입!");
-
-        View rootView = findViewById(R.id.root_quest);
-        ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
-
-        progressBars[0] = findViewById(R.id.progressQuest1);
-        progressBars[1] = findViewById(R.id.progressQuest2);
-        progressBars[2] = findViewById(R.id.progressQuest3);
-        progressBars[3] = findViewById(R.id.progressQuest4);
-        progressBars[4] = findViewById(R.id.progressQuest5);
-        progressBars[5] = findViewById(R.id.progressQuest6);
-        progressBars[6] = findViewById(R.id.progressQuest7);
-        progressBars[7] = findViewById(R.id.progressQuest8);
-        progressBars[8] = findViewById(R.id.progressQuest9);
-        progressBars[9] = findViewById(R.id.progressQuest10);
-        progressBars[10] = findViewById(R.id.progressQuest11);
-        progressBars[11] = findViewById(R.id.progressQuest12);
-        progressBars[12] = findViewById(R.id.progressQuest13);
-
-        claimButtons[0] = findViewById(R.id.btnClaim1);
-        claimButtons[1] = findViewById(R.id.btnClaim2);
-        claimButtons[2] = findViewById(R.id.btnClaim3);
-        claimButtons[3] = findViewById(R.id.btnClaim4);
-        claimButtons[4] = findViewById(R.id.btnClaim5);
-        claimButtons[5] = findViewById(R.id.btnClaim6);
-        claimButtons[6] = findViewById(R.id.btnClaim7);
-        claimButtons[7] = findViewById(R.id.btnClaim8);
-        claimButtons[8] = findViewById(R.id.btnClaim9);
-        claimButtons[9] = findViewById(R.id.btnClaim10);
-        claimButtons[10] = findViewById(R.id.btnClaim11);
-        claimButtons[11] = findViewById(R.id.btnClaim12);
-        claimButtons[12] = findViewById(R.id.btnClaim13);
-
-        //카메라 퀘스트용
-        imagePreview = findViewById(R.id.imagePreview);
-        Button buttonTakePhoto = findViewById(R.id.buttonTakePhoto);
-
-
-        // 버튼 클릭 시 카메라 열기
-        buttonTakePhoto.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // 카메라 권한 확인 및 요청
-                if (ContextCompat.checkSelfPermission(Tab3Activity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
-                        ContextCompat.checkSelfPermission(Tab3Activity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-
-                    ActivityCompat.requestPermissions(Tab3Activity.this,
-                            new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-                } else {
-                    dispatchTakePictureIntent();
-                }
-            }
-        });
-
-        for (int i = 0; i < claimButtons.length; i++) {
-            final int index = i;
-            claimButtons[i].setOnClickListener(v -> {
-                claimQuest(index + 1);
-            });
-        }
-
-        findViewById(R.id.tab1Button).setOnClickListener(view -> startActivity(new Intent(this, MainActivity.class)));
-        findViewById(R.id.tab2Button).setOnClickListener(view -> startActivity(new Intent(this, Tab2Activity.class)));
-        findViewById(R.id.tab3Button).setOnClickListener(view -> startActivity(new Intent(this, Tab3Activity.class)));
-        findViewById(R.id.tab4Button).setOnClickListener(view -> startActivity(new Intent(this, Tab4Activity.class)));
-        findViewById(R.id.tab6Button).setOnClickListener(view -> startActivity(new Intent(this, Tab6Activity.class)));
-
-        loadQuestProgressFromServer();
-    }
-
-    // 권한 요청 결과 처리
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                dispatchTakePictureIntent();
-            } else {
-                Toast.makeText(this, "카메라 권한이 필요합니다", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    // 카메라 인텐트 실행
-    private void dispatchTakePictureIntent() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            File photoFile = null;
-            try {
-                photoFile = createImageFile();
-            } catch (IOException ex) {
-                ex.printStackTrace();
-                Toast.makeText(this, "파일 생성 오류", Toast.LENGTH_SHORT).show();
+        // p1번 버튼 클릭 → 권한 → 촬영 → 미리보기
+        btnClaimP1.setOnClickListener(v -> {
+            currentPhotoQuestNumber = 101;
+            if (lastRunDistance < 1.0) {
+                Toast.makeText(this, "1km 이상 러닝 시 활성화됩니다.", Toast.LENGTH_LONG).show();
                 return;
             }
-            if (photoFile != null) {
-                photoURI = FileProvider.getUriForFile(this,
-                        getPackageName() + ".fileprovider",
-                        photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-            }
-        }
-    }
+            ensureCameraPermissionThenCapture();
+        });
 
-    // 이미지 파일 생성(촬영파일경로)
-    private File createImageFile() throws IOException {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile(
-                imageFileName,
-                ".jpg",
-                storageDir
-        );
-        currentPhotoPath = image.getAbsolutePath();
-        return image;
-    }
+        //p2번 버튼 클릭 → 권한 → 촬영 → 미리보기
+        btnClaimP2.setOnClickListener(v -> {
+            currentPhotoQuestNumber = 102;
+            ensureCameraPermissionThenCapture();
+        });
+```
+를
+```
+btnQuestP1.setEnabled(true);
+        btnQuestP2.setEnabled(true);
 
-    // 카메라 촬영 결과 처리
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            // 촬영한 사진 imagePreview에 표시
-            imagePreview.setImageURI(photoURI);
-
-            photoTaken = true;
-            buttonTakePhoto.setText("보상 받기");
-
-            buttonTakePhoto.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (photoTaken) {
-                        Toast.makeText(Tab3Activity.this, "보상을 수령했습니다!", Toast.LENGTH_SHORT).show();
-                        // MainActivity로 결과 전달 (옵션)
-                        Intent intent = new Intent();
-                        intent.putExtra("rewardClaimed", true);
-                        setResult(RESULT_OK, intent);
-                        finish();
-                    }
-                }
-            });
-        }
-    }
-
-    private void loadQuestProgressFromServer() {
-        SharedPreferences pref = getSharedPreferences("login", MODE_PRIVATE);
-        String token = pref.getString("token", null);
-        if (token == null) {
-            Toast.makeText(this, "로그인이 필요합니다.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        ApiService api = RetrofitClient.getRetrofitInstance().create(ApiService.class);
-        Call<QuestProgressResponse> call = api.getQuestProgress("Bearer " + token);
-        call.enqueue(new Callback<QuestProgressResponse>() {
-            @Override
-            public void onResponse(Call<QuestProgressResponse> call, Response<QuestProgressResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    updateQuestUI(response.body().getQuests());
-                } else {
-                    Toast.makeText(Tab3Activity.this, "퀘스트 정보를 불러오지 못했습니다.", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<QuestProgressResponse> call, Throwable t) {
-                Toast.makeText(Tab3Activity.this, "서버 연결 실패", Toast.LENGTH_SHORT).show();
+        btnQuestP1.setOnClickListener(v -> {
+            if (lastRunDistance >= 1.0) {
+                currentPhotoQuestNumber = 101;
+                ensureCameraPermissionThenCapture();
+            } else {
+                Toast.makeText(this, "1km 이상 러닝 시 촬영 가능합니다.", Toast.LENGTH_SHORT).show();
             }
         });
-    }
 
-    private void claimQuest(int questNumber) {
-        SharedPreferences pref = getSharedPreferences("login", MODE_PRIVATE);
-        String token = pref.getString("token", null);
-        if (token == null) {
-            Toast.makeText(this, "로그인이 필요합니다.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        ApiService api = RetrofitClient.getRetrofitInstance().create(ApiService.class);
-        ClaimQuestRequest request = new ClaimQuestRequest(questNumber);
-        Call<RunResultResponse> call = api.claimQuest("Bearer " + token, request);
-
-        call.enqueue(new Callback<RunResultResponse>() {
-            @Override
-            public void onResponse(Call<RunResultResponse> call, Response<RunResultResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    RunResultResponse result = response.body();
-                    if (result.isSuccess()) {
-                        int reward = result.getReward();
-                        Toast.makeText(Tab3Activity.this, "보상으로 먹이 " + reward + "개를 받았습니다!", Toast.LENGTH_SHORT).show();
-
-                        // 상자 열기 애니메이션 적용
-                        int boxId = getResources().getIdentifier("boxReward" + questNumber, "id", getPackageName());
-                        ImageView box = findViewById(boxId);
-                        if (box != null) {
-                            box.setImageResource(R.drawable.box_opened);
-                            Animation fadeIn = AnimationUtils.loadAnimation(Tab3Activity.this, R.anim.fade_open);
-                            box.startAnimation(fadeIn);
-                        }
-
-                        Intent intent = new Intent(Tab3Activity.this, MainActivity.class);
-                        intent.putExtra("reward", reward);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Toast.makeText(Tab3Activity.this, "보상을 받을 수 없는 상태입니다.", Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    Toast.makeText(Tab3Activity.this, "퀘스트 중복 보상 받기 불가", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<RunResultResponse> call, Throwable t) {
-                Toast.makeText(Tab3Activity.this, "서버 연결 실패: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
+        btnQuestP2.setOnClickListener(v -> {
+            currentPhotoQuestNumber = 102;
+            ensureCameraPermissionThenCapture();
         });
-    }
+```
+로 변경
+##
+```
+    //보상 성공 시 UI 업데이트 (신규)
+    private void handleCameraQuestRewardUI(int questNumber) {
+        try {
+            int boxId;
+            int progressId;
+            int btnId;
 
-    private void updateQuestUI(List<QuestProgressResponse.Quest> quests) {
-        for (int i = 0; i < Math.min(quests.size(), 13); i++) {
-            QuestProgressResponse.Quest q = quests.get(i);
-            double target = q.getTarget();
-            int percent = (target > 0) ? (int) ((q.getProgress() / target) * 100) : 0;
-            progressBars[i].setProgress(percent);
-            claimButtons[i].setEnabled(q.isCompleted());
-        }
-
-        for (QuestProgressResponse.Quest q : quests) {
-            if ("kcal".equals(q.getType())) {
-                int progress = (int) q.getProgress();
-                if (progress >= 100) {
-                    progressBars[6].setProgress(100);
-                    claimButtons[6].setEnabled(true);
-                }
-                if (progress >= 200) {
-                    progressBars[7].setProgress(100);
-                    claimButtons[7].setEnabled(true);
-                }
-                if (progress >= 400) {
-                    progressBars[8].setProgress(100);
-                    claimButtons[8].setEnabled(true);
-                }
+            // P1(24), P2(25) 매핑
+            if (questNumber == 101) {
+                boxId = R.id.boxRewardP1;
+                progressId = R.id.progressQuestP1;
+                btnId = R.id.btnClaimP1;
+            } else {
+                boxId = R.id.boxRewardP2;
+                progressId = R.id.progressQuestP2;
+                btnId = R.id.btnClaimP2;
             }
+
+            ImageView box = findViewById(boxId);
+            if (box != null) {
+                box.setImageResource(R.drawable.box_opened);
+                Animation fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_open);
+                box.startAnimation(fadeIn);
+            }
+
+            ProgressBar pb = findViewById(progressId);
+            if (pb != null) pb.setProgress(100);
+
+            Button btn = findViewById(btnId);
+            if (btn != null) {
+                btn.setEnabled(false);
+                btn.setText("완료");
+            }
+
+            Toast.makeText(this, "퀘스트 " + questNumber + " 보상을 받았습니다!", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e("CameraQuestUI", "UI update failed: " + e.getMessage());
         }
     }
-
-}
 ```
-
-
-## file_paths.xml 파일 생성
-res > xml > file_paths.xml 생성하시면 됩니다.
-
+를
 ```
-<?xml version="1.0" encoding="utf-8"?>
-<!--사진 퀘스트를 위한 설정 -->
+private void handleCameraQuestRewardUI(int questNumber) {
+        try {
+            int boxId,progressId,btnId;
 
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-files-path
-        name="my_images"
-        path="Pictures/" />
-</paths>
+            // P1(24), P2(25) 매핑
+            if (questNumber == 101) {
+                boxId = R.id.boxRewardP1;
+                progressId = R.id.progressQuestP1;
+                btnId = R.id.btnQuestP1;
+            } else {
+                boxId = R.id.boxRewardP2;
+                progressId = R.id.progressQuestP2;
+                btnId = R.id.btnQuestP2;
+            }
+
+            ImageView box = findViewById(boxId);
+            if (box != null) {
+                box.setImageResource(R.drawable.box_opened);
+                Animation fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_open);
+                box.startAnimation(fadeIn);
+            }
+
+            ProgressBar pb = findViewById(progressId);
+            if (pb != null) pb.setProgress(100);
+
+            Button btn = findViewById(btnId);
+            if (btn != null) {
+                btn.setEnabled(false);
+                btn.setText("완료");
+            }
+
+            Toast.makeText(this, "카메라 퀘스트 보상을 받았습니다!", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e("CameraQuestUI", "UI update failed: " + e.getMessage());
+        }
+    }
 ```
+로 변경
+</details>
 
+<details>
+  <summary>PhotoPreviewActivity.java</summary>
 
-## Tab3Activity.java 카메라 퀘스트 추가 업데이트
-### (조건O: 러닝 시작지점에서 반경 1km이상 러닝 시 카메라 퀘스트 활성화)   
+  ##
+  
+  ```
+  package kr.ac.hs.farm;
 
-```
-package kr.ac.hs.farm;
-
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.Manifest;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
-import android.graphics.Bitmap;
-import android.os.Environment;
-import android.provider.MediaStore;
-import android.widget.ProgressBar;
 import android.widget.Button;
-import android.content.SharedPreferences;
 import android.widget.ImageView;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
-import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.graphics.Insets;
-
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
 import android.widget.Toast;
-import android.util.Log;
-import android.view.View;
 
-public class Tab3Activity extends AppCompatActivity {
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.label.ImageLabel;
+import com.google.mlkit.vision.label.ImageLabeler;
+import com.google.mlkit.vision.label.ImageLabeling;
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions;
 
-    private static final int REQUEST_IMAGE_CAPTURE = 1;
-    private static final int REQUEST_CAMERA_PERMISSION = 100; //추가
-    private ProgressBar[] progressBars = new ProgressBar[13];
-    private Button[] claimButtons = new Button[13];
-    private ImageView imagePreview;
-    private Location startLocation; // 러닝 시작 지점 저장용
-    private Uri photoURI;
-    private File photoFile;
-    private Button buttonTakePhoto;
+public class PhotoPreviewActivity extends AppCompatActivity {
+
+    private ImageView previewImageView;
+    private Button btnClaimReward;
+    private Uri photoUri;
+    private int questNumber;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_tab3);
-        Log.d("퀘스트응답", "Tab3Activity onCreate 진입!");
+        setContentView(R.layout.activity_photopreview);
 
-        View rootView = findViewById(R.id.root_quest);
-        ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        // XML 뷰 초기화
+        previewImageView = findViewById(R.id.previewImageView);
+        btnClaimReward = findViewById(R.id.btnClaimReward);
 
-        progressBars[0] = findViewById(R.id.progressQuest1);
-        progressBars[1] = findViewById(R.id.progressQuest2);
-        progressBars[2] = findViewById(R.id.progressQuest3);
-        progressBars[3] = findViewById(R.id.progressQuest4);
-        progressBars[4] = findViewById(R.id.progressQuest5);
-        progressBars[5] = findViewById(R.id.progressQuest6);
-        progressBars[6] = findViewById(R.id.progressQuest7);
-        progressBars[7] = findViewById(R.id.progressQuest8);
-        progressBars[8] = findViewById(R.id.progressQuest9);
-        progressBars[9] = findViewById(R.id.progressQuest10);
-        progressBars[10] = findViewById(R.id.progressQuest11);
-        progressBars[11] = findViewById(R.id.progressQuest12);
-        progressBars[12] = findViewById(R.id.progressQuest13);
+        // Intent에서 전달된 사진과 퀘스트 번호 받기
+        Intent intent = getIntent();
+        photoUri = intent.getParcelableExtra("photoUri");
+        questNumber = intent.getIntExtra("questNumber", -1);
 
-        claimButtons[0] = findViewById(R.id.btnClaim1);
-        claimButtons[1] = findViewById(R.id.btnClaim2);
-        claimButtons[2] = findViewById(R.id.btnClaim3);
-        claimButtons[3] = findViewById(R.id.btnClaim4);
-        claimButtons[4] = findViewById(R.id.btnClaim5);
-        claimButtons[5] = findViewById(R.id.btnClaim6);
-        claimButtons[6] = findViewById(R.id.btnClaim7);
-        claimButtons[7] = findViewById(R.id.btnClaim8);
-        claimButtons[8] = findViewById(R.id.btnClaim9);
-        claimButtons[9] = findViewById(R.id.btnClaim10);
-        claimButtons[10] = findViewById(R.id.btnClaim11);
-        claimButtons[11] = findViewById(R.id.btnClaim12);
-        claimButtons[12] = findViewById(R.id.btnClaim13);
+        // 사진 미리보기 표시
+        if (photoUri != null) {
+            previewImageView.setImageURI(photoUri);
 
-        imagePreview = findViewById(R.id.imagePreview);
-        Button buttonTakePhoto = findViewById(R.id.buttonTakePhoto);
+            if (questNumber == 101) {
+                // ★ CHANGED: p1번은 "촬영만 하면" 보상 가능
+                btnClaimReward.setEnabled(true);
 
-        getStartLocation(); //러닝 시작 위치 설정
-
-        //사진 찍기 버튼 동작 정의
-        buttonTakePhoto.setOnClickListener(v -> {
-            if(checkLocationDistance()){
-                requestCameraPermission();
-            } else{
-                Toast.makeText(this,"2km 이상 이동해야 퀘스트를 수행할 수 있습니다.", Toast.LENGTH_LONG).show();
+            } else if (questNumber == 102) {
+                // ★ CHANGED: p2번은 ML Kit 라벨링 후 식물/나무일 때 활성화
+                btnClaimReward.setEnabled(false);
+                analyzePhotoForQuest102(photoUri);
             }
-        });
-
-        for (int i = 0; i < claimButtons.length; i++) {
-            final int index = i;
-            claimButtons[i].setOnClickListener(v -> {
-                claimQuest(index + 1);
-            });
+        } else {
+            Toast.makeText(this, "사진 정보를 불러올 수 없습니다.", Toast.LENGTH_SHORT).show();
         }
+
+        // 보상 버튼 클릭 이벤트
+        btnClaimReward.setOnClickListener(v -> {
+            Intent resultIntent = new Intent();
+            resultIntent.putExtra("questNumber", questNumber);
+            resultIntent.putExtra("rewardResult", "success");
+            setResult(RESULT_OK, resultIntent);
+            finish();
+        });
 
         findViewById(R.id.tab1Button).setOnClickListener(view -> startActivity(new Intent(this, MainActivity.class)));
         findViewById(R.id.tab2Button).setOnClickListener(view -> startActivity(new Intent(this, Tab2Activity.class)));
         findViewById(R.id.tab3Button).setOnClickListener(view -> startActivity(new Intent(this, Tab3Activity.class)));
         findViewById(R.id.tab4Button).setOnClickListener(view -> startActivity(new Intent(this, Tab4Activity.class)));
         findViewById(R.id.tab6Button).setOnClickListener(view -> startActivity(new Intent(this, Tab6Activity.class)));
-
-        loadQuestProgressFromServer();
     }
 
-    // 임시 러닝 시작 지점 설정
-    private void getStartLocation() {
-        startLocation = new Location("start");
-        startLocation.setLatitude(37.5665);
-        startLocation.setLongitude(126.9780);
-    }
+    // P2 (102번) 퀘스트: ML Kit으로 식물 판별
+    private void analyzePhotoForQuest102(Uri uri) {
+        try {
+            InputImage image = InputImage.fromFilePath(this, uri);
 
-    //현재 위치와 시작 위치 거리 비교
-    private boolean checkLocationDistance() {
-        Location currentLocation = getCurrentLocation();
-        if (currentLocation != null && startLocation != null) {
-            float distance = startLocation.distanceTo(currentLocation);
-            return distance >= 2000;
-        }
-        return false;
-    }
+            ImageLabeler labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS);
 
-    //임시 현재 위치 설정
-    private Location getCurrentLocation() {
-        Location location = new Location("current");
-        location.setLatitude(37.5765);
-        location.setLongitude(126.9880);
-        return location;
-    }
-
-    //카메라 권한 요청
-    private void requestCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
-        } else {
-            openCamera();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                openCamera();
-            } else {
-                Toast.makeText(this, "카메라 권한이 필요합니다.", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    //카메라 열기 및 파일 저장 위치 지정
-    private void openCamera() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            try {
-                photoFile = createImageFile();
-                if (photoFile != null) {
-                    photoURI = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", photoFile);
-                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                    startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-                }
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
-    }
-
-    //이미지 파일 미리보기 생성
-    private File createImageFile() throws IOException {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        return File.createTempFile(imageFileName, ".jpg", storageDir);
-    }
-
-    //사진 촬영 후 보상 처리 및 버튼 설정
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            imagePreview.setImageURI(photoURI);
-            buttonTakePhoto.setText("보상 받기");
-            buttonTakePhoto.setOnClickListener(v -> {
-                Toast.makeText(this, "보상을 받았습니다!", Toast.LENGTH_SHORT).show();
-                Intent resultIntent = new Intent();
-                resultIntent.putExtra("questResult", "success");
-                setResult(RESULT_OK, resultIntent);
-                finish();
-            });
-        }
-    }
-
-    private void loadQuestProgressFromServer() {
-        SharedPreferences pref = getSharedPreferences("login", MODE_PRIVATE);
-        String token = pref.getString("token", null);
-        if (token == null) {
-            Toast.makeText(this, "로그인이 필요합니다.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        ApiService api = RetrofitClient.getRetrofitInstance().create(ApiService.class);
-        Call<QuestProgressResponse> call = api.getQuestProgress("Bearer " + token);
-        call.enqueue(new Callback<QuestProgressResponse>() {
-            @Override
-            public void onResponse(Call<QuestProgressResponse> call, Response<QuestProgressResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    updateQuestUI(response.body().getQuests());
-                } else {
-                    Toast.makeText(Tab3Activity.this, "퀘스트 정보를 불러오지 못했습니다.", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<QuestProgressResponse> call, Throwable t) {
-                Toast.makeText(Tab3Activity.this, "서버 연결 실패", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    private void claimQuest(int questNumber) {
-        SharedPreferences pref = getSharedPreferences("login", MODE_PRIVATE);
-        String token = pref.getString("token", null);
-        if (token == null) {
-            Toast.makeText(this, "로그인이 필요합니다.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        ApiService api = RetrofitClient.getRetrofitInstance().create(ApiService.class);
-        ClaimQuestRequest request = new ClaimQuestRequest(questNumber);
-        Call<RunResultResponse> call = api.claimQuest("Bearer " + token, request);
-
-        call.enqueue(new Callback<RunResultResponse>() {
-            @Override
-            public void onResponse(Call<RunResultResponse> call, Response<RunResultResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    RunResultResponse result = response.body();
-                    if (result.isSuccess()) {
-                        int reward = result.getReward();
-                        Toast.makeText(Tab3Activity.this, "보상으로 먹이 " + reward + "개를 받았습니다!", Toast.LENGTH_SHORT).show();
-
-                        // 상자 열기 애니메이션 적용
-                        int boxId = getResources().getIdentifier("boxReward" + questNumber, "id", getPackageName());
-                        ImageView box = findViewById(boxId);
-                        if (box != null) {
-                            box.setImageResource(R.drawable.box_opened);
-                            Animation fadeIn = AnimationUtils.loadAnimation(Tab3Activity.this, R.anim.fade_open);
-                            box.startAnimation(fadeIn);
+            labeler.process(image)
+                    .addOnSuccessListener(labels -> {
+                        boolean foundPlant = false;
+                        for (ImageLabel label : labels) {
+                            String text = label.getText();
+                            float confidence = label.getConfidence();
+                            if (text.equalsIgnoreCase("plant") || text.equalsIgnoreCase("flower") || text.equalsIgnoreCase("tree")
+                                    || text.equalsIgnoreCase("leaf")) {
+                                foundPlant = true;
+                                break;
+                            }
                         }
 
-                        Intent intent = new Intent(Tab3Activity.this, MainActivity.class);
-                        intent.putExtra("reward", reward);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Toast.makeText(Tab3Activity.this, "보상을 받을 수 없는 상태입니다.", Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    Toast.makeText(Tab3Activity.this, "퀘스트 중복 보상 받기 불가", Toast.LENGTH_SHORT).show();
-                }
-            }
+                        if (foundPlant) {
+                            btnClaimReward.setEnabled(true);
+                            Toast.makeText(this, "식물이 감지되었습니다! 보상을 받아주세요.", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(this, "식물이 감지되지 않았습니다. 다시 촬영해주세요.", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "이미지 분석 실패: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
 
-            @Override
-            public void onFailure(Call<RunResultResponse> call, Throwable t) {
-                Toast.makeText(Tab3Activity.this, "서버 연결 실패: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    private void updateQuestUI(List<QuestProgressResponse.Quest> quests) {
-        for (int i = 0; i < Math.min(quests.size(), 13); i++) {
-            QuestProgressResponse.Quest q = quests.get(i);
-            double target = q.getTarget();
-            int percent = (target > 0) ? (int) ((q.getProgress() / target) * 100) : 0;
-            progressBars[i].setProgress(percent);
-            claimButtons[i].setEnabled(q.isCompleted());
-        }
-
-        for (QuestProgressResponse.Quest q : quests) {
-            if ("kcal".equals(q.getType())) {
-                int progress = (int) q.getProgress();
-                if (progress >= 100) {
-                    progressBars[6].setProgress(100);
-                    claimButtons[6].setEnabled(true);
-                }
-                if (progress >= 200) {
-                    progressBars[7].setProgress(100);
-                    claimButtons[7].setEnabled(true);
-                }
-                if (progress >= 400) {
-                    progressBars[8].setProgress(100);
-                    claimButtons[8].setEnabled(true);
-                }
-            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "분석 오류 발생: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
+
 }
-
 ```
+로 전체 수정해주시면 됩니다.
 
-## AndroidManifest.xml에 추가
-application ~ /application에 추가하시면 됩니다
-
-```
-<!-- 카메라 사진 저장을 위한 FileProvider 설정 -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-```
 </details>
 
-# 8/20
-## UI 수정본 파일 업로드 목록
+<details>
+<summary> activity_tab3.xml </summary>
+ 
+## 카메라 퀘스트 영역
 
-activity_tab3.xml   
-activity_photopreview.xml  // layout파일에 새로 추가해주시면 됩니다.
-
-## 내용추가
-
-build.gradel.kts(:app) 파일에서 dependencies{} 부분에 추가
+  ```
+<Button
+                            android:id="@+id/btnClaimP1"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:backgroundTint="#FFF7D1"
+                            android:elevation="2dp"
+                            android:enabled="false"
+                            android:text="사진찍기"
+                            android:textColor="#5D7755"
+                            android:textStyle="bold" />
 ```
-implementation("com.google.mlkit:image-labeling:17.0.7")
+에서
 ```
+ android:id="@+id/btnQuestP1"
+```
+로 변경
+```
+android:enabled="false"
+```
+삭제
 
-## 카메라 퀘스트 수정본
+```
+<Button
+                            android:id="@+id/btnClaimP2"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:backgroundTint="#FFF7D1"
+                            android:elevation="2dp"
+                            android:enabled="false"
+                            android:text="사진찍기"
+                            android:textColor="#5D7755"
+                            android:textStyle="bold" />
+```
+에서
+```
+android:id="@+id/btnQuestP2"
+```
+로 변경
+```
+android:enabled="false"
+```
+삭제
+</details>
 
-Tab3Activity.java   
-PhotoPreviewActivity.java  // 새로 추가된 java파일 
+<details>
+  <summary>activity_photopreview.xml</summary>
+
+##
+  ```
+android:padding="16dp"
+```
+삭제
+```
+<!-- 하단 탭바 -->
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:background="#FFFFFF"
+        android:layout_margin="8dp"
+        android:padding="6dp"
+        android:elevation="10dp"
+        android:clipToPadding="false"
+        android:backgroundTint="#FFFFFF"
+        android:backgroundTintMode="src_in"
+        android:weightSum="5"
+        android:gravity="center">
+
+        <ImageButton
+            android:id="@+id/tab1Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:contentDescription="탭1"
+            android:src="@drawable/ic_home"/>
+
+        <Space
+            android:layout_width="16dp"
+            android:layout_height="wrap_content" />
+
+        <ImageButton
+            android:id="@+id/tab2Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_running"
+            android:background="@drawable/bottom_tab_selector"
+            android:contentDescription="탭 2" />
+
+        <Space
+            android:layout_width="16dp"
+            android:layout_height="wrap_content" />
+
+        <ImageButton
+            android:id="@+id/tab3Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:contentDescription="탭3"
+            android:src="@drawable/ic_quest" />
+
+        <Space
+            android:layout_width="16dp"
+            android:layout_height="wrap_content" />
+
+        <ImageButton
+            android:id="@+id/tab4Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:contentDescription="탭4"
+            android:src="@drawable/ic_inventory" />
+
+        <Space
+            android:layout_width="16dp"
+            android:layout_height="wrap_content" />
+
+        <ImageButton
+            android:id="@+id/tab6Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:contentDescription="탭6"
+            android:src="@drawable/ic_mypage" />
+    </LinearLayout>
+```
+<Button/> 아래에 하단 탭바 추가
+</details>
